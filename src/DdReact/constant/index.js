@@ -1,0 +1,1 @@
+export const TEXT_ELEMENT = 'DDREACT_TEXT_ELEMENT'
