@@ -3,5 +3,7 @@
     "@babel/preset-react",
     "@babel/preset-env"
   ],
-  "plugins": []
+  "plugins": [
+    ["@babel/plugin-proposal-class-properties", { "loose": true }]
+  ]
 }
