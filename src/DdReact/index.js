@@ -1,4 +1,4 @@
-import { render } from './render'
+import { render } from './reconciler'
 import { createElement } from './createElement'
 import Component from './component'
 

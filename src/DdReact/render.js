@@ -1,4 +1,4 @@
-import {isTextElement} from './constant'
+import {isTextElement} from './utils'
 let rootInstance = null
 /**
  * @param {*} element DdreactElement中的格式，主要有props和type两个属性
