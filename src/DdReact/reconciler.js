@@ -1,4 +1,4 @@
-import { NODE_TYPE, ENOUGH_TIME, EFFECT_TAGS, valueToArray, TEXT_ELEMENT } from './utils'
+import { NODE_TYPE, ENOUGH_TIME, EFFECT_TAGS, valueToArray, TEXT_ELEMENT, isTextElement } from './utils'
 import { createDomElement, updateDomProperties } from './dom_operation'
 import { createInstance } from './component'
 const updateQueue = []
@@ -42,6 +42,7 @@ function workloop(deadline) {
   if(!nextUnitOfWork) {
     resetNextUnitOfWork()
   }
+  console.log('workloop', nextUnitOfWork)
   while(nextUnitOfWork && deadline.timeRemaining() > ENOUGH_TIME) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork)
   }
@@ -54,11 +55,14 @@ function resetNextUnitOfWork() {
   if(!update) {
     return
   }
-  const root = update.dom.__rootContainerFiber
+  if(update.partialState) {
+    update.instance.__fiber.partialState = update.partialState
+  }
+  const root = update.from === NODE_TYPE.HOST_ROOT ? update.dom.__rootContainerFiber : getRoot(update.instance.__fiber)
   nextUnitOfWork = {
     tag: NODE_TYPE.HOST_ROOT,
-    props: update.props,
-    stateNode: update.dom,
+    props: update.props || root.props,
+    stateNode: update.dom || root.stateNode,
     alternate: root,
   }
 }
@@ -78,6 +82,7 @@ function performUnitOfWork(wipFiber) {
 }
 
 function beginWork(wipFiber) {
+  console.log('beginwork', wipFiber)
   const { tag } = wipFiber
   if(tag === NODE_TYPE.CLASS_COMPONENT) {
     updateClassComponent(wipFiber)
@@ -90,11 +95,16 @@ function updateClassComponent(wipFiber) {
   let {stateNode: instance, props} = wipFiber
   if(!instance) {
     instance = wipFiber.stateNode = createInstance(wipFiber)
-  } else if(instance.props == props) {
+  } else if(instance.props == props && !wipFiber.partialState) {
     cloneChildFibers(wipFiber)
     return
   }
-  const elements = instance.render()
+  instance.props = wipFiber.props
+  instance.state = Object.assign({}, instance.state, wipFiber.partialState)
+  wipFiber.partialState = null
+
+  const elements = wipFiber.stateNode.render()
+  console.log('updateClassComponent', wipFiber.stateNode, elements)
   reconcileChildArray(wipFiber, elements)
 }
 
@@ -103,6 +113,7 @@ function updateHostComponent(wipFiber) {
   if(!stateNode) {
     wipFiber.stateNode = createDomElement(wipFiber)
   }
+
   const childrenElements = wipFiber.props && wipFiber.props.children || []
   reconcileChildArray(wipFiber, childrenElements)
 }
@@ -140,14 +151,23 @@ function cloneChildFibers(wipFiber) {
 function reconcileChildArray(wipFiber, childrenElements) {
   const elementsArray = valueToArray(childrenElements)
   const current = wipFiber.alternate
-  const currentChildFiber = current && current.child
+  let currentChildFiber = current && current.child
   let index = 0
   let wipChildFiber = null
   while(index < elementsArray.length || currentChildFiber) {
     const prevFiber = wipChildFiber
-    const element = index < elementsArray.length ? elementsArray[index] : {}
+    let element = index < elementsArray.length ? elementsArray[index] : {}
     const { props } = element
     const sameType = currentChildFiber && currentChildFiber.props == props
+    const isPlainText = isTextElement(element)
+    // 对于最下层textNode需要处理一下
+    if(isPlainText) {
+      element = {
+        type: TEXT_ELEMENT,
+        tag: NODE_TYPE.HOST_COMPONENT,
+        props: {nodeValue: element}
+      }
+    }
     // 这里的effects属性将在completeWork阶段添加
     if(sameType) {
       wipChildFiber = {
@@ -162,11 +182,10 @@ function reconcileChildArray(wipFiber, childrenElements) {
       }
     }
     if(element && !sameType) {
-      const isPlainText = typeof element === 'string'
       wipChildFiber = {
-        type: isPlainText ? TEXT_ELEMENT : element.type,
-        tag: (typeof element.type === 'string' || isPlainText) ? NODE_TYPE.HOST_COMPONENT : NODE_TYPE.CLASS_COMPONENT,
-        props: isPlainText ? {nodeValue: element} : element.props,
+        type: element.type,
+        tag: (typeof element.type === 'string') ? NODE_TYPE.HOST_COMPONENT : NODE_TYPE.CLASS_COMPONENT,
+        props: element.props,
         parent: wipFiber,
         effectTag: EFFECT_TAGS.PLACEMENT,
       }

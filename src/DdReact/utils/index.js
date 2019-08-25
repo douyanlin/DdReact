@@ -5,7 +5,7 @@ function isObject(value) {
   return value != null && (type == 'object' || type == 'function')
 }
 export const isTextElement = (element) => {
-  return !isObject(element)
+  return !isObject(element) && typeof element !== 'boolean'
 }
 
 export const isFunction = (f) => {
