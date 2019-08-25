@@ -1,4 +1,4 @@
-import { NODE_TYPE, ENOUGH_TIME, EFFECT_TAGS, valueToArray } from './utils'
+import { NODE_TYPE, ENOUGH_TIME, EFFECT_TAGS, valueToArray, TEXT_ELEMENT } from './utils'
 import { createDomElement, updateDomProperties } from './dom_operation'
 import { createInstance } from './component'
 const updateQueue = []
@@ -40,7 +40,7 @@ function performWork(deadline) {
 }
 function workloop(deadline) {
   if(!nextUnitOfWork) {
-    nextUnitOfWork = resetNextUnitOfWork()
+    resetNextUnitOfWork()
   }
   while(nextUnitOfWork && deadline.timeRemaining() > ENOUGH_TIME) {
     nextUnitOfWork = performUnitOfWork(nextUnitOfWork)
@@ -81,7 +81,7 @@ function beginWork(wipFiber) {
   const { tag } = wipFiber
   if(tag === NODE_TYPE.CLASS_COMPONENT) {
     updateClassComponent(wipFiber)
-  } else if(tag === NODE_TYPE.HOST_COMPONENT) {
+  } else {
     updateHostComponent(wipFiber)
   }
 }
@@ -101,9 +101,9 @@ function updateClassComponent(wipFiber) {
 function updateHostComponent(wipFiber) {
   const { stateNode } = wipFiber
   if(!stateNode) {
-    wipFiber.stateNode = createDomElement()
+    wipFiber.stateNode = createDomElement(wipFiber)
   }
-  const childrenElements = wipFiber.props.children
+  const childrenElements = wipFiber.props && wipFiber.props.children || []
   reconcileChildArray(wipFiber, childrenElements)
 }
 function cloneChildFibers(wipFiber) {
@@ -141,13 +141,13 @@ function reconcileChildArray(wipFiber, childrenElements) {
   const elementsArray = valueToArray(childrenElements)
   const current = wipFiber.alternate
   const currentChildFiber = current && current.child
-  const index = 0
+  let index = 0
   let wipChildFiber = null
   while(index < elementsArray.length || currentChildFiber) {
     const prevFiber = wipChildFiber
     const element = index < elementsArray.length ? elementsArray[index] : {}
     const { props } = element
-    const sameType = currentChildFiber.props == props
+    const sameType = currentChildFiber && currentChildFiber.props == props
     // 这里的effects属性将在completeWork阶段添加
     if(sameType) {
       wipChildFiber = {
@@ -162,10 +162,11 @@ function reconcileChildArray(wipFiber, childrenElements) {
       }
     }
     if(element && !sameType) {
+      const isPlainText = typeof element === 'string'
       wipChildFiber = {
-        type: element.type,
-        tag: typeof element.type === 'string' ? NODE_TYPE.HOST_COMPONENT : NODE_TYPE.CLASS_COMPONENT,
-        props: element.props,
+        type: isPlainText ? TEXT_ELEMENT : element.type,
+        tag: (typeof element.type === 'string' || isPlainText) ? NODE_TYPE.HOST_COMPONENT : NODE_TYPE.CLASS_COMPONENT,
+        props: isPlainText ? {nodeValue: element} : element.props,
         parent: wipFiber,
         effectTag: EFFECT_TAGS.PLACEMENT,
       }
@@ -207,7 +208,7 @@ function completeWork(wipFiber) {
 }
 
 function commitAllWork(fiber) {
-  const { effects = [] } = fiber.effects
+  const { effects = [] } = fiber
   effects.forEach(e => {
     commitWork(e)
   })
@@ -225,7 +226,7 @@ function commitWork(fiber) {
     parentDomFiber = parentDomFiber.parent;
   }
   const parentDom = parentDomFiber.stateNode;
-  if(fiber.effectTag === EFFECT_TAGS.PLACEMENT && fiber.tag == HOST_COMPONENT) {
+  if(fiber.effectTag === EFFECT_TAGS.PLACEMENT && fiber.tag == NODE_TYPE.HOST_COMPONENT) {
     parentDom.appendChild(fiber.stateNode)
   } else if(fiber.effectTag === EFFECT_TAGS.UPDATE) {
     updateDomProperties(fiber.stateNode, fiber.alternate.props, fiber.props)

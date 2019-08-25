@@ -17,7 +17,7 @@ export const valueToArray = (value) => !value ? [] : Array.isArray(value) ? valu
 
 export const NODE_TYPE = {
   HOST_ROOT: 'root',
-  HOST_COMPONENT: 'host ',
+  HOST_COMPONENT: 'host',
   CLASS_COMPONENT: 'class',
 }
 export const ENOUGH_TIME = 1

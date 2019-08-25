@@ -24,7 +24,7 @@ export function updateDomProperties(dom, prevProps = {}, newProps = {}) {
       const eventName = key.toLowerCase().substring(2)
       dom.addEventListener(eventName, newProps[key])
     } else if(isAttribute(key)){
-      dom[key] = prevProps[key]
+      dom[key] = newProps[key]
     }
   })
 }
